@@ -27,11 +27,12 @@ jobs:
       - name: Download last SHA artifact
         uses: dawidd6/action-download-artifact@v6
         with:
-          repo: 'aayush2622/Dartotsu'
+          repo: 'itsmechinmoy/dartotsu-preview'
           workflow: release.yml
           name: last-sha
           path: .
           allow-forks: true
+          if_no_artifact_found: warn
         continue-on-error: true
         env:
           DEBUG_MESSAGE: "No previous last-sha artifact found. This is expected on the first run or if previous runs failed."
@@ -121,7 +122,7 @@ jobs:
         run: |
           VER=$(grep -E -o "version: [0-9]+\.[0-9]+\.[0-9]+" pubspec.yaml | sed -e 's/version: //g')
           SHA=${{ github.sha }}
-          VERSION="${VER}-${SHA:0:7}"
+          VERSION="${VER}.${SHA:0:7}"
           echo "Version $VERSION"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
         shell: bash
