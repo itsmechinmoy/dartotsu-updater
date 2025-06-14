@@ -93,6 +93,14 @@ jobs:
           rm -rf * .[^.] .??*
           git clone --branch main https://github.com/aayush2622/Dartotsu.git .
 
+      - name: Override path Dependency
+        run: |
+          echo "Adding dependency override for path ^1.9.0"
+          sed -i '/^dependency_overrides:/a \  path: ^1.9.0' pubspec.yaml
+          echo "Updated pubspec.yaml:"
+          cat pubspec.yaml
+        shell: bash
+
       - name: Get Commits Since Last Run
         run: |
           if [ "${{ needs.check-updates.outputs.LAST_SHA }}" != "" ]; then
