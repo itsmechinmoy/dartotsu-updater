@@ -5,7 +5,7 @@ permissions:
 
 on:
   schedule:
-    - cron: '0 6 * * 2'
+    - cron: '0 6 * * 2'  # Every Tuesday at 6 AM UTC
   workflow_dispatch:
 
 jobs:
@@ -80,13 +80,12 @@ jobs:
           name: last-sha
           path: last_sha.txt
 
-  build:
+  build-linux:
     runs-on: ubuntu-latest
     needs: check-updates
     if: ${{ needs.check-updates.outputs.SHOULD_RUN == 'true' }}
     env:
       CI: true
-      SKIP_BUILD: false
 
     steps:
       - name: Checkout Repository
@@ -121,7 +120,7 @@ jobs:
       - name: Extract Version
         id: version
         run: |
-          VER=$(grep -E -o "version: [0-9]+\.[0-9]+\.[0-9]+" pubspec.yaml | sed -e 's/version: //g')
+          VER=$(grep -E '^version:' pubspec.yaml | sed 's/version: //' | sed 's/+.*//')
           echo "Version: $VER"
           echo "VER=$VER" >> $GITHUB_OUTPUT
         shell: bash
@@ -144,7 +143,7 @@ jobs:
         env:
           SIMKL_SECRET: ${{ secrets.SIMKL_SECRET }}
         run: |
-          echo "SIMKL_SECRET=$SIMKL_SECRET" >> .env
+          echo "SIMKL_SECRET=$SIMKL_SECRET" > .env
 
       - name: Fetch Flutter Dependencies
         run: flutter pub get
@@ -181,57 +180,90 @@ jobs:
           mv Dartotsu-x86_64.AppImage build/linux/x64/release/Dartotsu-Linux-v${{ steps.version.outputs.VER }}-run${{ github.run_number }}.AppImage
           ls build/linux/x64/release
 
-      - name: Verify AppImage Output
+      - name: Archive the App Bundle
+        uses: thedoctor0/zip-release@master
+        with:
+          type: "zip"
+          filename: Dartotsu_LinuxZip_v${{ steps.version.outputs.VER }}-run${{ github.run_number }}.zip
+          directory: build/linux/x64/release/bundle
+
+      - name: Verify Outputs
         run: |
-          echo "Listing all AppImage files in build/linux/x64/release:"
+          echo "Listing all files in build/linux/x64/release:"
           ls -la build/linux/x64/release/
+          echo "Listing all files in build/linux/x64/release/bundle:"
+          ls -la build/linux/x64/release/bundle/
           if [ -f build/linux/x64/release/Dartotsu-Linux-v${{ steps.version.outputs.VER }}-run${{ github.run_number }}.AppImage ]; then
-            echo "✅ AppImage found (Dartotsu-Linux-v${{ steps.version.outputs.VER }}-run${{ github.run_number }}.AppImage)"
+            echo "✅ AppImage found"
             echo "APPIMAGE_EXISTS=true" >> .env
             echo "APPIMAGE_NAME=Dartotsu-Linux-v${{ steps.version.outputs.VER }}-run${{ github.run_number }}.AppImage" >> .env
           else
             echo "❌ AppImage not found!"
             echo "APPIMAGE_EXISTS=false" >> .env
           fi
+          if [ -f build/linux/x64/release/bundle/Dartotsu_LinuxZip_v${{ steps.version.outputs.VER }}-run${{ github.run_number }}.zip ]; then
+            echo "✅ Zip found"
+            echo "ZIP_EXISTS=true" >> .env
+            echo "ZIP_NAME=Dartotsu_LinuxZip_v${{ steps.version.outputs.VER }}-run${{ github.run_number }}.zip" >> .env
+          else
+            echo "❌ Zip not found!"
+            echo "ZIP_EXISTS=false" >> .env
+          fi
         shell: bash
 
-      - name: Calculate SHA256 Checksum
-        if: contains(fromJSON(env.APPIMAGE_EXISTS), 'true')
+      - name: Calculate SHA256 Checksums
+        if: contains(fromJSON(env.APPIMAGE_EXISTS), 'true') || contains(fromJSON(env.ZIP_EXISTS), 'true')
         run: |
-          echo "Calculating SHA256 checksum for AppImage..."
-          APPIMAGE_SHA=$(sha256sum "build/linux/x64/release/${{ env.APPIMAGE_NAME }}" | cut -d ' ' -f 1)
-          echo "APPIMAGE_SHA=${APPIMAGE_SHA}" >> .env
-          echo "AppImage SHA256: ${APPIMAGE_SHA}"
+          echo "Calculating SHA256 checksums..."
+          if [ "${{ env.APPIMAGE_EXISTS }}" = "true" ]; then
+            APPIMAGE_SHA=$(sha256sum "build/linux/x64/release/${{ env.APPIMAGE_NAME }}" | cut -d ' ' -f 1)
+            echo "APPIMAGE_SHA=${APPIMAGE_SHA}" >> .env
+            echo "AppImage SHA256: ${APPIMAGE_SHA}"
+          fi
+          if [ "${{ env.ZIP_EXISTS }}" = "true" ]; then
+            ZIP_SHA=$(sha256sum "build/linux/x64/release/bundle/${{ env.ZIP_NAME }}" | cut -d ' ' -f 1)
+            echo "ZIP_SHA=${ZIP_SHA}" >> .env
+            echo "Zip SHA256: ${ZIP_SHA}"
+          fi
 
-      - name: Append Checksum to Commit Log
-        if: contains(fromJSON(env.APPIMAGE_EXISTS), 'true')
+      - name: Append Checksums to Commit Log
+        if: contains(fromJSON(env.APPIMAGE_EXISTS), 'true') || contains(fromJSON(env.ZIP_EXISTS), 'true')
         run: |
           echo -e "\n---\n" >> commit_log.txt
-          echo -e "### Checksum\n" >> commit_log.txt
-          echo "| File | SHA-256 |" >> commit_log.txt
-          echo "| ---- | ------- |" >> commit_log.txt
-          echo "| Linux AppImage | ${{ env.APPIMAGE_SHA }} |" >> commit_log.txt
-          echo "Updated commit_log.txt with checksum:"
+          echo -e "### Checksums\n" >> commit_log.txt
+          echo "| Variant | SHA-256 |" >> commit_log.txt
+          echo "| ------- | ------- |" >> commit_log.txt
+          if [ "${{ env.APPIMAGE_EXISTS }}" = "true" ]; then
+            echo "| Linux AppImage | ${{ env.APPIMAGE_SHA }} |" >> commit_log.txt
+          fi
+          if [ "${{ env.ZIP_EXISTS }}" = "true" ]; then
+            echo "| Linux ZIP | ${{ env.ZIP_SHA }} |" >> commit_log.txt
+          fi
+          echo "Updated commit_log.txt with checksums:"
           cat commit_log.txt
         shell: bash
 
-      - name: Upload AppImage as Build Artifact
-        if: contains(fromJSON(env.APPIMAGE_EXISTS), 'true')
+      - name: Upload Linux Builds as Artifacts
+        if: contains(fromJSON(env.APPIMAGE_EXISTS), 'true') || contains(fromJSON(env.ZIP_EXISTS), 'true')
         uses: actions/upload-artifact@v4
         with:
-          name: Dartotsu-Linux-AppImage
+          name: Dartotsu-Linux-Builds
           retention-days: 5
           compression-level: 9
-          path: build/linux/x64/release/Dartotsu-Linux-v${{ steps.version.outputs.VER }}-run${{ github.run_number }}.AppImage
+          path: |
+            build/linux/x64/release/Dartotsu-Linux-v${{ steps.version.outputs.VER }}-run${{ github.run_number }}.AppImage
+            build/linux/x64/release/bundle/Dartotsu_LinuxZip_v${{ steps.version.outputs.VER }}-run${{ github.run_number }}.zip
 
       - name: Create GitHub Release and Upload Assets
-        if: contains(fromJSON(env.APPIMAGE_EXISTS), 'true')
+        if: contains(fromJSON(env.APPIMAGE_EXISTS), 'true') || contains(fromJSON(env.ZIP_EXISTS), 'true')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.VER }}-run${{ github.run_number }}
           name: Dartotsu v${{ steps.version.outputs.VER }} (Run ${{ github.run_number }})
           body_path: commit_log.txt
-          files: build/linux/x64/release/Dartotsu-Linux-v${{ steps.version.outputs.VER }}-run${{ github.run_number }}.AppImage
+          files: |
+            build/linux/x64/release/Dartotsu-Linux-v${{ steps.version.outputs.VER }}-run${{ github.run_number }}.AppImage
+            build/linux/x64/release/bundle/Dartotsu_LinuxZip_v${{ steps.version.outputs.VER }}-run${{ github.run_number }}.zip
           draft: true
           prerelease: true
           token: ${{ secrets.GITHUB_TOKEN }}
