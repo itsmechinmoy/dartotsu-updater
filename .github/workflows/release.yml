@@ -122,9 +122,9 @@ jobs:
         run: |
           VER=$(grep -E -o "version: [0-9]+\.[0-9]+\.[0-9]+" pubspec.yaml | sed -e 's/version: //g')
           SHA=${{ github.sha }}
-          VERSION="${VER}_${SHA:0:7}"
-          echo "Version $VERSION"
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION=$VER" >> $GITHUB_ENV
+          echo "SHA_SHORT=${SHA:0:7}" >> $GITHUB_ENV
+          echo "Version $VER"
         shell: bash
 
       - name: Setup Flutter
@@ -179,17 +179,17 @@ jobs:
           EOF
           chmod +x AppDir/AppRun
           /usr/local/bin/appimagetool AppDir
-          mv Dartotsu-x86_64.AppImage build/linux/x64/release/Dartotsu-Linux-v${{ env.VERSION }}.AppImage
+          mv Dartotsu-x86_64.AppImage build/linux/x64/release/Dartotsu-Linux-v${{ env.VERSION }}-${{ env.SHA_SHORT }}.AppImage
           ls build/linux/x64/release
 
       - name: Verify AppImage Output
         run: |
           echo "Listing all AppImage files in build/linux/x64/release:"
           ls -la build/linux/x64/release/
-          if [ -f build/linux/x64/release/Dartotsu-Linux-v${{ env.VERSION }}.AppImage ]; then
-            echo "✅ AppImage found (Dartotsu-Linux-v${{ env.VERSION }}.AppImage)"
+          if [ -f build/linux/x64/release/Dartotsu-Linux-v${{ env.VERSION }}-${{ env.SHA_SHORT }}.AppImage ]; then
+            echo "✅ AppImage found (Dartotsu-Linux-v${{ env.VERSION }}-${{ env.SHA_SHORT }}.AppImage)"
             echo "APPIMAGE_EXISTS=true" >> $GITHUB_ENV
-            echo "APPIMAGE_NAME=Dartotsu-Linux-v${{ env.VERSION }}.AppImage" >> $GITHUB_ENV
+            echo "APPIMAGE_NAME=Dartotsu-Linux-v${{ env.VERSION }}-${{ env.SHA_SHORT }}.AppImage" >> $GITHUB_ENV
           else
             echo "❌ AppImage not found!"
             echo "APPIMAGE_EXISTS=false" >> $GITHUB_ENV
@@ -222,16 +222,16 @@ jobs:
           name: Dartotsu-Linux-AppImage
           retention-days: 5
           compression-level: 9
-          path: build/linux/x64/release/Dartotsu-Linux-v${{ env.VERSION }}.AppImage
+          path: build/linux/x64/release/Dartotsu-Linux-v${{ env.VERSION }}-${{ env.SHA_SHORT }}.AppImage
 
       - name: Create GitHub Release and Upload Assets
         if: ${{ env.APPIMAGE_EXISTS == 'true' }}
-        uses: ncipollo/release-action@v1
+        uses: softprops/action-gh-release@v2
         with:
-          tag: v${{ env.VERSION }}
+          tag_name: v${{ env.VERSION }}
           name: Dartotsu v${{ env.VERSION }}
-          bodyFile: commit_log.txt
-          artifacts: build/linux/x64/release/Dartotsu-Linux-v${{ env.VERSION }}.AppImage
+          body_path: commit_log.txt
+          files: build/linux/x64/release/Dartotsu-Linux-v${{ env.VERSION }}-${{ env.SHA_SHORT }}.AppImage
           draft: true
           prerelease: true
           token: ${{ secrets.GITHUB_TOKEN }}
