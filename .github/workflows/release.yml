@@ -93,10 +93,10 @@ jobs:
           rm -rf * .[^.] .??*
           git clone --branch main https://github.com/aayush2622/Dartotsu.git .
 
-      - name: Override path Dependency
+      - name: Override Dependencies
         run: |
-          echo "Adding dependency override for path ^1.9.0"
-          sed -i '/^dependency_overrides:/a \  path: ^1.9.0' pubspec.yaml
+          echo "Adding dependency overrides for path, meta, and device_info_plus"
+          sed -i '/^dependency_overrides:/a \  path: ^1.9.0\n  meta: ^1.15.0\n  device_info_plus: 10.1.0' pubspec.yaml
           echo "Updated pubspec.yaml:"
           cat pubspec.yaml
         shell: bash
