@@ -39,8 +39,8 @@ jobs:
 
       - name: Commit last processed commit SHA
         run: |
-          git config --global user.name 'Sheby'
-          git config --global user.email 'sheby@gmail.com'
+          git config --global user.name 'itsmechinmoy'
+          git config --global user.email '167056923+itsmechinmoy@users.noreply.github.com'
           git add last_processed_commit.txt
           git diff --cached --quiet || git commit -m "Update last processed commit SHA"
           git push origin main
