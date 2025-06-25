@@ -36,3 +36,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
         run: node scripts/monitorAndRelease.js
+
+      - name: Commit last processed commit SHA
+        run: |
+          git config --global user.name 'Sheby'
+          git config --global user.email 'sheby@gmail.com'
+          git add last_processed_commit.txt
+          git diff --cached --quiet || git commit -m "Update last processed commit SHA"
+          git push origin main
+        if: always()
