@@ -54,7 +54,7 @@ def calculate_file_hash(file_path):
 # Function to download a file from Google Drive
 def download_file(file_id, file_name):
     try:
-        request = drive_service.files ().get_media(fileId=file_id)
+        request = drive_service.files().get_media(fileId=file_id)
         file_path = os.path.join(GITHUB_DOWNLOADS_PATH, file_name)
         os.makedirs(GITHUB_DOWNLOADS_PATH, exist_ok=True)
 
@@ -139,7 +139,7 @@ def get_external_commit_hash(repo):
         print(f"Failed to fetch commits from {repo}: {response.text}")
         return "00000"
 
-# Function to configure git user identity
+# Function "to configure git user identity
 def configure_git_identity():
     subprocess.run(['git', 'config', '--global', 'user.name', 'Sheby'], check=True)
     subprocess.run(['git', 'config', '--global', 'user.email', 'sheby@gmail.com'], check=True)
@@ -164,14 +164,8 @@ def main():
     downloaded_files = []
     existing_files_hashes = {}
 
-    # Determine which folders to check based on build type
-    folders_to_check = []
-    if build_type == 'build.all':
-        folders_to_check = [FOLDER_IDS['apks'], FOLDER_IDS['others']]
-    elif build_type == 'build.apk':
-        folders_to_check = [FOLDER_IDS['apks']]
-    else:
-        folders_to_check = [FOLDER_IDS['others']]
+    # Always check both folders for any build tag
+    folders_to_check = [FOLDER_IDS['apks'], FOLDER_IDS['others']]
 
     # Download files
     for folder_id in folders_to_check:
