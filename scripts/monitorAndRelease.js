@@ -140,9 +140,9 @@ async function writeLastProcessedCommit(sha) {
 }
 
 // Trigger Python script to download and release
-function triggerDownloadAndRelease(buildType) {
+function triggerDownloadAndRelease(buildType, sha) {
   try {
-    execSync(`python download_and_release.py '${process.env.SERVICE_ACCOUNT_JSON}' ${buildType}`, { stdio: 'inherit' });
+    execSync(`python download_and_release.py '${process.env.SERVICE_ACCOUNT_JSON}' ${buildType} ${sha}`, { stdio: 'inherit' });
     console.log('Download and release script executed successfully.');
   } catch (error) {
     console.error('Error executing download and release script:', error.message);
@@ -180,7 +180,7 @@ async function main() {
   }
 
   // Trigger download and release
-  triggerDownloadAndRelease(buildType);
+  triggerDownloadAndRelease(buildType, sha);
 
   // Update last processed commit
   await writeLastProcessedCommit(sha);
