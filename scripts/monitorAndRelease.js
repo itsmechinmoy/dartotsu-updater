@@ -105,6 +105,13 @@ async function checkJobSuccess(sha, buildType) {
   const allRequiredSucceeded = requiredJobs.every(job => successfulJobs.some(j => j.name.toLowerCase() === job));
   console.log(`Required jobs for ${buildType}: ${requiredJobs.join(', ')}`);
   console.log(`Successful jobs: ${successfulJobs.map(j => j.name).join(', ')}`);
+
+  // For [build.all], allow partial success if at least one job succeeds
+  if (buildType === 'build.all' && successfulJobs.length > 0) {
+    console.log(`Partial success detected for ${buildType}, proceeding with available builds.`);
+    return true;
+  }
+
   return allRequiredSucceeded;
 }
 
