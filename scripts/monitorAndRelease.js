@@ -11,6 +11,7 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 // URLs
 const COMMITS_URL = `https://api.github.com/repos/${EXTERNAL_REPO_OWNER}/${EXTERNAL_REPO}/commits`;
 const WORKFLOW_URL = `https://api.github.com/repos/${EXTERNAL_REPO_OWNER}/${EXTERNAL_REPO}/actions/workflows/dart.yml/runs`;
+const JOBS_URL = (runId) => `https://api.github.com/repos/${EXTERNAL_REPO_OWNER}/${EXTERNAL_REPO}/actions/runs/${runId}/jobs`;
 
 // Headers for GitHub API
 const headers = {
@@ -20,6 +21,16 @@ const headers = {
 
 // File to store the last processed commit SHA
 const LAST_PROCESSED_FILE = 'last_processed_commit.txt';
+
+// Map build tags to job names (adjust based on dart.yml)
+const BUILD_TAG_TO_JOB = {
+  'build.all': ['build-apk', 'build-windows', 'build-macos', 'build-linux', 'build-ios'],
+  'build.apk': ['build-apk'],
+  'build.windows': ['build-windows'],
+  'build.macos': ['build-macos'],
+  'build.linux': ['build-linux'],
+  'build.ios': ['build-ios']
+};
 
 // Get latest commits from external repository
 async function getExternalRepoCommits() {
@@ -47,8 +58,8 @@ function getBuildTypeAndSha(commits) {
   return null;
 }
 
-// Get workflow runs for a specific commit SHA
-async function getWorkflowStatusForCommit(sha) {
+// Get workflow run details for a specific commit SHA
+async function getWorkflowRunForCommit(sha) {
   try {
     const response = await axios.get(`${WORKFLOW_URL}?head_sha=${sha}`, { headers });
     const runs = response.data.workflow_runs;
@@ -56,47 +67,45 @@ async function getWorkflowStatusForCommit(sha) {
       console.log(`No workflow runs found for commit ${sha}`);
       return null;
     }
-    const latestRun = runs[0]; // Latest run for this commit
-    return {
-      status: latestRun.status,
-      conclusion: latestRun.conclusion,
-      updated_at: latestRun.updated_at,
-    };
+    return runs[0]; // Latest run for this commit
   } catch (error) {
-    console.error('Error fetching workflow status:', error.message);
+    console.error('Error fetching workflow run:', error.message);
     return null;
   }
 }
 
-// Wait for workflow to complete
-async function waitForWorkflowCompletion(sha) {
-  const maxAttempts = 60; // Wait up to 30 minutes (60 * 30s)
-  let attempts = 0;
+// Get job statuses for a workflow run
+async function getJobStatuses(runId) {
+  try {
+    const response = await axios.get(JOBS_URL(runId), { headers });
+    return response.data.jobs;
+  } catch (error) {
+    console.error('Error fetching job statuses:', error.message);
+    return [];
+  }
+}
 
-  while (attempts < maxAttempts) {
-    const workflow = await getWorkflowStatusForCommit(sha);
-    if (!workflow) {
-      console.error(`Failed to fetch workflow status for commit ${sha}.`);
-      return false;
-    }
-
-    if (workflow.status === 'completed') {
-      if (workflow.conclusion === 'success') {
-        console.log(`Workflow for commit ${sha} completed successfully.`);
-        return true;
-      } else {
-        console.log(`Workflow for commit ${sha} failed with conclusion: ${workflow.conclusion}`);
-        return false;
-      }
-    }
-
-    console.log(`Workflow for commit ${sha} still running, waiting 30 seconds...`);
-    await new Promise(resolve => setTimeout(resolve, 30000));
-    attempts++;
+// Check if required jobs succeeded
+async function checkJobSuccess(sha, buildType) {
+  const run = await getWorkflowRunForCommit(sha);
+  if (!run || run.status !== 'completed') {
+    console.log(`Workflow for commit ${sha} is not completed.`);
+    return false;
   }
 
-  console.error(`Workflow for commit ${sha} did not complete in time.`);
-  return false;
+  const jobs = await getJobStatuses(run.id);
+  const requiredJobs = BUILD_TAG_TO_JOB[buildType] || [];
+  const successfulJobs = jobs.filter(job => job.conclusion === 'success' && requiredJobs.includes(job.name.toLowerCase()));
+
+  if (requiredJobs.length === 0) {
+    console.log(`No specific jobs defined for ${buildType}, checking overall success.`);
+    return run.conclusion === 'success';
+  }
+
+  const allRequiredSucceeded = requiredJobs.every(job => successfulJobs.some(j => j.name.toLowerCase() === job));
+  console.log(`Required jobs for ${buildType}: ${requiredJobs.join(', ')}`);
+  console.log(`Successful jobs: ${successfulJobs.map(j => j.name).join(', ')}`);
+  return allRequiredSucceeded;
 }
 
 // Read last processed commit SHA
@@ -156,10 +165,10 @@ async function main() {
     return;
   }
 
-  // Wait for workflow to complete for this specific commit
-  const workflowSuccess = await waitForWorkflowCompletion(sha);
-  if (!workflowSuccess) {
-    console.error(`Workflow for commit ${sha} did not succeed, skipping release.`);
+  // Check job success for this build type
+  const jobSuccess = await checkJobSuccess(sha, buildType);
+  if (!jobSuccess) {
+    console.error(`Required jobs for commit ${sha} did not succeed, skipping release.`);
     return;
   }
 
