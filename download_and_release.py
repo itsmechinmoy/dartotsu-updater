@@ -54,7 +54,7 @@ def calculate_file_hash(file_path):
 # Function to download a file from Google Drive
 def download_file(file_id, file_name):
     try:
-        request = drive_service.files().get_media(fileId=file_id)
+        request = drive_service.files ().get_media(fileId=file_id)
         file_path = os.path.join(GITHUB_DOWNLOADS_PATH, file_name)
         os.makedirs(GITHUB_DOWNLOADS_PATH, exist_ok=True)
 
