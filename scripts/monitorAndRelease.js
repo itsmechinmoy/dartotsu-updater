@@ -22,14 +22,14 @@ const headers = {
 // File to store the last processed commit SHA
 const LAST_PROCESSED_FILE = 'last_processed_commit.txt';
 
-// Map build tags to job names (adjust based on dart.yml)
+// Map build tags to job names (adjusted for underscores based on dart.yml)
 const BUILD_TAG_TO_JOB = {
-  'build.all': ['build-apk', 'build-windows', 'build-macos', 'build-linux', 'build-ios'],
-  'build.apk': ['build-apk'],
-  'build.windows': ['build-windows'],
-  'build.macos': ['build-macos'],
-  'build.linux': ['build-linux'],
-  'build.ios': ['build-ios']
+  'build.all': ['build_android', 'build_windows', 'build_macos', 'build_linux', 'build_ios'],
+  'build.apk': ['build_android'], // Assuming Android builds APKs
+  'build.windows': ['build_windows'],
+  'build.macos': ['build_macos'],
+  'build.linux': ['build_linux'],
+  'build.ios': ['build_ios']
 };
 
 // Get latest commits from external repository
