@@ -1,18 +1,20 @@
 # [Dartotsu](https://github.com/aayush2622/Dartotsu) Build Monitor and Release Automation
-This repository automates the process of monitoring the `aayush2622/Dartotsu` repository for build-related commits, downloading build artifacts from Google Drive folders, and creating or updating releases in the `itsmechinmoy/dartotsu-updater` GitHub repository. The workflow checks for commits with specific build tags (e.g., `[build.all]`, `[build.apk]`, `[build.windows]`), verifies successful workflow runs, and releases the downloaded files as GitHub release assets.
+
+This repository automates the process of monitoring the `aayush2622/Dartotsu` repository for build-related commits, downloading build artifacts from Google Drive folders, and creating or updating releases in the `itsmechinmoy/dartotsu-updater` GitHub repository. The workflow checks for commits with specific build tags (e.g., `[build.all]`, `[build.apk]`, `[build.windows]`), verifies successful workflow runs, and releases the downloaded files as GitHub release assets. The release tags are based on the latest commit SHA from `aayush2622/Dartotsu` (e.g., `abc1234`).
 
 ## Features
 - Monitors `aayush2622/Dartotsu` for commits containing build tags like `[build.all]`, `[build.apk]`, `[build.windows]`, `[build.linux]`, `[build.ios]`, or `[build.macos]`.
-- Verifies successful completion of the `dart.yml` workflow in `aayush2622/Dartotsu` for the detected commit.
+- Verifies successful completion of the `dart.yml` workflow in `aayush2622/Dartotsu` for the detected commit, allowing partial success for `[build.all]` if at least one job succeeds.
 - Downloads build artifacts from specified Google Drive folders:
   - APKs: `1S4QzdKz7ZofhiF5GAvjMdBvYK7YhndKM`
   - Other builds (DMG, EXE, etc.): `1nWYex54zd58SVitJUCva91_4k1PPTdP3`
-- Creates a new GitHub release for `[build.all]` commits using the commit SHA as the tag (e.g., `abc1234`).
-- Updates the latest release for specific build tags (e.g., `[build.apk]`) by replacing existing assets with matching names.
+- Creates a new GitHub release for `[build.all]` commits using a tag based on the latest commit SHA from `aayush2622/Dartotsu` (e.g., `abc1234`), with a check to avoid duplicate releases.
+- Updates the latest release for specific build tags (e.g., `[build.apk]`) by replacing existing assets with matching names, using the same SHA-based tag.
 - Tracks processed commits to avoid duplicate releases using `last_processed_commit.txt`.
 - Commits downloaded files to the `downloads` directory in the repository.
 
 ## Prerequisites
+
 1. **Google Drive API Credentials**:
    - A service account JSON key with `Viewer` access to the Google Drive folders.
 2. **GitHub Personal Access Token (PAT)**:
@@ -42,6 +44,7 @@ npm install axios
 ```
 
 ## Setup
+
 1. **Clone this repository**:
    ```bash
    git clone https://github.com/itsmechinmoy/dartotsu-updater.git
@@ -82,9 +85,10 @@ npm install axios
      ```
 
 ## How It Works
+
 1. **Monitor `aayush2622/Dartotsu`**:
    - The `monitorAndRelease.js` script checks for new commits in `aayush2622/Dartotsu` with build tags (e.g., `[build.all]`, `[build.apk]`).
-   - It verifies that the `dart.yml` workflow for the commit completed successfully.
+   - It verifies that the `dart.yml` workflow for the commit completed successfully, allowing partial success for `[build.all]` if at least one job (e.g., `build_android`, `build_windows`) succeeds.
 
 2. **Download Builds from Google Drive**:
    - The `download_and_release.py` script fetches files from both Google Drive folders (APKs and others).
@@ -92,8 +96,8 @@ npm install axios
    - Downloaded files are saved in the `downloads` directory.
 
 3. **Create or Update GitHub Release**:
-   - For `[build.all]` commits, a new release is created with a tag based on the commit SHA (e.g., `abc1234`).
-   - For specific build tags (e.g., `[build.apk]`), the latest release is updated by replacing assets with matching names.
+   - For `[build.all]` commits, a new release is created with a tag based on the latest commit SHA from `aayush2622/Dartotsu` (e.g., `abc1234`, using the first 7 characters), with a check to avoid creating duplicate releases if the tag already exists.
+   - For specific build tags (e.g., `[build.apk]`), the latest release (based on the same SHA) is updated by replacing assets with matching names.
    - Files are uploaded as release assets via the GitHub API.
 
 4. **Track Processed Commits**:
