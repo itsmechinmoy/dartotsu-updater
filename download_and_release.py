@@ -9,6 +9,7 @@ from googleapiclient.http import MediaIoBaseDownload
 from google.oauth2 import service_account
 from googleapiclient.errors import HttpError
 import subprocess
+from packaging import version
 
 # Constants
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
@@ -81,6 +82,22 @@ def get_latest_release(repo, token):
         return response.json()
     return None
 
+# Function to get all releases
+def get_all_releases(repo, token):
+    releases_url = f"https://api.github.com/repos/{repo}/releases"
+    headers = {"Authorization": f"token {token}"}
+    response = requests.get(releases_url, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    return []
+
+# Function to increment version
+def increment_version(current_version):
+    if not current_version or not current_version.startswith('v'):
+        return 'v1.0.0'
+    v = version.parse(current_version[1:])  # Remove 'v' prefix
+    return f"v{v.major}.{v.minor}.{v.patch + 1}"
+
 # Function to create a new GitHub release
 def create_github_release(repo, token, tag, files):
     release_url = f"https://api.github.com/repos/{repo}/releases"
@@ -94,6 +111,19 @@ def create_github_release(repo, token, tag, files):
     upload_url = release["upload_url"].split("{")[0]
     upload_files(upload_url, headers, files)
     print(f"Release {tag} created successfully.")
+
+# Function to delete existing release
+def delete_release(repo, token, tag):
+    releases = get_all_releases(repo, token)
+    for release in releases:
+        if release["tag_name"] == tag:
+            delete_url = f"https://api.github.com/repos/{repo}/releases/{release['id']}"
+            response = requests.delete(delete_url, headers={"Authorization": f"token {token}"})
+            if response.status_code == 204:
+                print(f"Deleted existing release with tag {tag}")
+            else:
+                print(f"Failed to delete release {tag}: {response.content}")
+            break
 
 # Function to update existing release
 def update_github_release(repo, token, release_id, files):
@@ -127,17 +157,6 @@ def upload_files(upload_url, headers, files):
                 if response.status_code not in (200, 201):
                     raise Exception(f"Failed to upload file {file_name}: {response.content}")
             print(f"Uploaded {file_name} to GitHub release.")
-
-# Function to get external commit hash
-def get_external_commit_hash(repo):
-    url = f"https://api.github.com/repos/{repo}/commits"
-    response = requests.get(url)
-    if response.status_code == 200:
-        commit_sha = response.json()[0].get('sha')
-        return commit_sha[:7] if commit_sha else "0000000"
-    else:
-        print(f"Failed to fetch commits from {repo}: {response.text}")
-        return "00000"
 
 # Function to configure git user identity
 def configure_git_identity():
@@ -193,28 +212,19 @@ def main():
         configure_git_identity()
         commit_and_push()
 
-        EXTERNAL_REPO = "aayush2622/Dartotsu"
-        tag_name = get_external_commit_hash(EXTERNAL_REPO)
-        print(f"Using tag: {tag_name}")
+        latest_release = get_latest_release(GITHUB_REPO, GITHUB_TOKEN)
+        new_tag = increment_version(latest_release['tag_name'] if latest_release else None)
 
         if build_type == 'build.all':
-            # Check if release exists
-            release_check_url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{tag_name}"
-            headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-            check_response = requests.get(release_check_url, headers=headers)
-
-            if check_response.status_code == 200:
-                print(f"Release with tag '{tag_name}' already exists. Skipping.")
-            else:
-                create_github_release(GITHUB_REPO, GITHUB_TOKEN, tag_name, downloaded_files)
+            delete_release(GITHUB_REPO, GITHUB_TOKEN, new_tag)  # Delete if exists
+            create_github_release(GITHUB_REPO, GITHUB_TOKEN, new_tag, downloaded_files)
         else:
-            # Update latest release for specific builds
             latest_release = get_latest_release(GITHUB_REPO, GITHUB_TOKEN)
             if latest_release:
                 update_github_release(GITHUB_REPO, GITHUB_TOKEN, latest_release['id'], downloaded_files)
             else:
-                print("No existing release found. Creating new release.")
-                create_github_release(GITHUB_REPO, GITHUB_TOKEN, tag_name, downloaded_files)
+                delete_release(GITHUB_REPO, GITHUB_TOKEN, new_tag)  # Delete if exists
+                create_github_release(GITHUB_REPO, GITHUB_TOKEN, new_tag, downloaded_files)
     else:
         print("No new or changed files to process.")
 
