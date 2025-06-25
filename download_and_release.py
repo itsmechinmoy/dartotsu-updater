@@ -18,9 +18,9 @@ FOLDER_IDS = {
     'others': '1nWYex54zd58SVitJUCva91_4k1PPTdP3'
 }
 
-# Get service account JSON, build type, and commit SHA from command-line arguments
-if len(sys.argv) < 4:
-    print("Usage: python download_and_release.py '<SERVICE_ACCOUNT_JSON>' <build_type> <commit_sha>")
+# Get service account JSON from command-line argument
+if len(sys.argv) < 2:
+    print("Usage: python download_and_release.py '<SERVICE_ACCOUNT_JSON>' <build_type>")
     sys.exit(1)
 
 try:
@@ -32,7 +32,6 @@ except Exception as e:
     sys.exit(1)
 
 build_type = sys.argv[2]
-commit_sha = sys.argv[3][:7]  # Use first 7 characters of SHA
 GITHUB_REPO = os.getenv("GITHUB_REPOSITORY", "itsmechinmoy/dartotsu-updater")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
@@ -73,27 +72,51 @@ def download_file(file_id, file_name):
         else:
             raise
 
-# Function to get latest release
-def get_latest_release(repo, token):
-    release_url = f"https://api.github.com/repos/{repo}/releases/latest"
-    headers = {"Authorization": f"token {token}"}
-    response = requests.get(release_url, headers=headers)
+# Function to get latest commit hash from external repository
+def get_external_commit_hash(repo):
+    url = f"https://api.github.com/repos/{repo}/commits"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    response = requests.get(url, headers=headers)
     if response.status_code == 200:
-        return response.json()
-    return None
+        commit_sha = response.json()[0].get('sha')
+        return commit_sha[:7] if commit_sha else "0000000"
+    else:
+        print(f"Failed to fetch commits from {repo}: {response.text}")
+        return "0000000"
 
-# Function to create a new GitHub release
+# Function to create a GitHub release and upload files
 def create_github_release(repo, token, tag, files):
     release_url = f"https://api.github.com/repos/{repo}/releases"
     headers = {"Authorization": f"token {token}"}
-    release_data = {"tag_name": tag, "name": tag, "body": f"Automated release for {build_type}"}
-    response = requests.post(release_url, json=release_data, headers=headers)
-    if response.status_code != 201:
-        raise Exception(f"Failed to create release: {response.content}")
 
-    release = response.json()
+    # Check for existing release with the same tag
+    release_check_url = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
+    check_response = requests.get(release_check_url, headers=headers)
+    if check_response.status_code == 200:
+        print(f"Release with tag '{tag}' already exists. Skipping release creation.")
+        return
+
+    # Create a new release
+    release_data = {"tag_name": tag, "name": tag, "body": f"Automated release for {build_type}"}
+    release_response = requests.post(release_url, json=release_data, headers=headers)
+    if release_response.status_code != 201:
+        raise Exception(f"Failed to create release: {release_response.content}")
+
+    release = release_response.json()
     upload_url = release["upload_url"].split("{")[0]
-    upload_files(upload_url, headers, files)
+
+    # Upload files to the release
+    for file_path in files:
+        if file_path:  # Skip if file_path is None
+            file_name = os.path.basename(file_path)
+            with open(file_path, "rb") as f:
+                headers.update({"Content-Type": "application/octet-stream"})
+                upload_response = requests.post(
+                    f"{upload_url}?name={file_name}", headers=headers, data=f
+                )
+                if upload_response.status_code not in (200, 201):
+                    raise Exception(f"Failed to upload file {file_name}: {upload_response.content}")
+            print(f"Uploaded {file_name} to GitHub release.")
     print(f"Release {tag} created successfully.")
 
 # Function to update existing release
@@ -113,7 +136,7 @@ def update_github_release(repo, token, release_id, files):
 
     # Upload new files
     upload_files(upload_url, headers, files)
-    print(f"Updated release {release['tag_name']} with new files.")
+    print(f"Updated release {release['name']} with new files.")
 
 # Function to upload files to a release
 def upload_files(upload_url, headers, files):
@@ -183,14 +206,19 @@ def main():
         configure_git_identity()
         commit_and_push()
 
+        # Generate tag from external repo commit hash
+        EXTERNAL_REPO = "aayush2622/Dartotsu"
+        tag_name = get_external_commit_hash(EXTERNAL_REPO)
+        print(f"Using tag based on external commit hash: {tag_name}")
+
         if build_type == 'build.all':
-            create_github_release(GITHUB_REPO, GITHUB_TOKEN, commit_sha, downloaded_files)
+            create_github_release(GITHUB_REPO, GITHUB_TOKEN, tag_name, downloaded_files)
         else:
-            latest_release = get_latest_release(GITHUB_REPO, GITHUB_TOKEN)
-            if latest_release:
+            latest_release = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest", headers={"Authorization": f"token {GITHUB_TOKEN}"}).json()
+            if latest_release.get('id'):
                 update_github_release(GITHUB_REPO, GITHUB_TOKEN, latest_release['id'], downloaded_files)
             else:
-                create_github_release(GITHUB_REPO, GITHUB_TOKEN, commit_sha, downloaded_files)
+                create_github_release(GITHUB_REPO, GITHUB_TOKEN, tag_name, downloaded_files)
     else:
         print("No new or changed files to process.")
 
