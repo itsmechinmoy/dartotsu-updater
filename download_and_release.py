@@ -139,10 +139,10 @@ def get_external_commit_hash(repo):
         print(f"Failed to fetch commits from {repo}: {response.text}")
         return "00000"
 
-# Function "to configure git user identity
+# Function to configure git user identity
 def configure_git_identity():
-    subprocess.run(['git', 'config', '--global', 'user.name', 'Sheby'], check=True)
-    subprocess.run(['git', 'config', '--global', 'user.email', 'sheby@gmail.com'], check=True)
+    subprocess.run(['git', 'config', '--global', 'user.name', 'itsmechinmoy'], check=True)
+    subprocess.run(['git', 'config', '--global', 'user.email', '167056923+itsmechinmoy@users.noreply.github.com'], check=True)
     print("Configured Git identity.")
 
 # Function to commit and push changes
